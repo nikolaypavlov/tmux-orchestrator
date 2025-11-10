@@ -36,7 +36,6 @@ RUN apt-get update && apt-get install -y \
     # Shell and editors
     zsh \
     vim \
-    nano \
     # Python
     python3 \
     python3-pip \
@@ -60,10 +59,6 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
     && apt-get install -y gh \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-# Install uv (fast Python package manager)
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Install Claude Code CLI globally
 RUN npm install -g @anthropic-ai/claude-code
@@ -89,21 +84,21 @@ COPY --chown=claude:claude init-firewall.sh /usr/local/bin/init-firewall.sh
 
 # Install uv for claude user
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/home/claude/.cargo/bin:${PATH}"
+ENV PATH="/home/claude/.local/bin:${PATH}"
 
 # Configure shell aliases for modern CLI tools
 RUN echo 'alias cat="bat"' >> ~/.zshrc \
     && echo 'alias find="fd"' >> ~/.zshrc \
     && echo 'alias grep="rg"' >> ~/.zshrc \
-    && echo 'export EDITOR=nano' >> ~/.zshrc \
-    && echo 'export VISUAL=nano' >> ~/.zshrc
+    && echo 'export EDITOR=vim' >> ~/.zshrc \
+    && echo 'export VISUAL=vim' >> ~/.zshrc
 
 # Copy same aliases to bashrc for bash users
 RUN echo 'alias cat="bat"' >> ~/.bashrc \
     && echo 'alias find="fd"' >> ~/.bashrc \
     && echo 'alias grep="rg"' >> ~/.bashrc \
-    && echo 'export EDITOR=nano' >> ~/.bashrc \
-    && echo 'export VISUAL=nano' >> ~/.bashrc
+    && echo 'export EDITOR=vim' >> ~/.bashrc \
+    && echo 'export VISUAL=vim' >> ~/.bashrc
 
 # Set working directory to workspace
 WORKDIR /workspace
