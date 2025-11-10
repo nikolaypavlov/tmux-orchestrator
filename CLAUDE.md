@@ -31,6 +31,91 @@ As the Orchestrator, you maintain high-level oversight without getting bogged do
 6. **Researcher**: Technology evaluation
 7. **Documentation Writer**: Technical documentation
 
+## Modern CLI Tools - Preferred Tools for Agents
+
+When working in containerized environments (or if available on host), agents should use modern CLI alternatives:
+
+### Available Modern Tools
+
+**File Operations:**
+- `fd` instead of `find` - Faster, simpler syntax, respects `.gitignore`
+  ```bash
+  fd pattern                    # Find files matching pattern
+  fd -e py                      # Find all Python files
+  fd -t f "config"              # Find files (not dirs) with "config"
+  ```
+
+- `bat` instead of `cat` - Syntax highlighting, line numbers, git integration
+  ```bash
+  bat file.py                   # View with syntax highlighting
+  bat -n file.js                # Show line numbers
+  ```
+
+**Text Search:**
+- `rg` (ripgrep) instead of `grep` - Much faster, better defaults
+  ```bash
+  rg "pattern" .                # Search in current directory
+  rg -i "case insensitive"      # Case-insensitive search
+  rg -t py "import"             # Search only in Python files
+  ```
+
+**Interactive Tools:**
+- `fzf` - Fuzzy finder for interactive selection
+  ```bash
+  fd | fzf                      # Fuzzy find files
+  git branch | fzf              # Fuzzy select branch
+  ```
+
+**Utilities:**
+- `jq` - JSON processing and querying
+  ```bash
+  cat data.json | jq '.key'     # Extract value
+  jq -r '.items[]' data.json    # Array iteration
+  ```
+
+- `entr` - Run commands when files change (development watcher)
+  ```bash
+  fd -e py | entr pytest        # Re-run tests on Python file changes
+  fd -e js | entr npm test      # Re-run tests on JS changes
+  ```
+
+- `tree` - Directory structure visualization
+  ```bash
+  tree -L 2                     # Show 2 levels deep
+  tree -I 'node_modules'        # Ignore specific directories
+  ```
+
+- `uv` - Fast Python package manager (instead of pip)
+  ```bash
+  uv pip install package        # Much faster than pip
+  uv venv                       # Create virtual environment
+  ```
+
+### When to Use These Tools
+
+**Agents in Containers**: These tools are pre-installed and aliased. Use them by default.
+
+**Agents on Host**: Check availability first:
+```bash
+command -v fd &> /dev/null && echo "fd available"
+```
+
+**Best Practices**:
+- Use `fd` for file discovery tasks
+- Use `rg` for code searches (faster than grep)
+- Use `bat` when reading code files (better than cat)
+- Use `jq` for all JSON manipulation
+- Use `entr` for watching files during development
+- Use `uv` for Python package operations (much faster)
+
+### Container-Specific Information
+
+Containers built from `containers/Dockerfile` include:
+- **Ubuntu 24.04** base
+- **All modern CLI tools** pre-installed
+- **Shell aliases** configured (`cat`→`bat`, `find`→`fd`, `grep`→`rg`)
+- **Network firewall** with approved domains only (GitHub, Anthropic, HuggingFace, GitLab, PyPI, npm)
+
 ## 🔐 Git Discipline - MANDATORY FOR ALL AGENTS
 
 ### Core Git Safety Rules
@@ -133,6 +218,58 @@ tmux rename-window -t glacier-backend:3 "Uvicorn-API"
 - **Better Organization**: Know exactly what's running where
 - **Reduced Confusion**: No more generic "node" or "zsh" names
 - **Project Context**: Names reflect actual purpose
+
+## Orchestrator Startup Protocol
+
+### Host Environment Checks
+
+When starting as orchestrator, perform these checks FIRST:
+
+#### 1. Check tmux-resurrect Installation
+```bash
+if [ ! -d "$HOME/.tmux/plugins/tmux-resurrect" ]; then
+  echo "⚠️  WARNING: tmux-resurrect not installed!"
+  echo "Session persistence disabled. Install it for better reliability."
+  echo "See README.md 'Host Setup' section for instructions."
+fi
+```
+
+**Why this matters**: Without tmux-resurrect, all session state is lost on disconnect. This defeats the purpose of 24/7 autonomous operation.
+
+#### 2. Verify tmux-resurrect Configuration
+```bash
+if grep -q "@resurrect-save-interval" "$HOME/.tmux.conf"; then
+  echo "✓ Auto-save configured"
+else
+  echo "⚠️  Consider adding: set -g @resurrect-save-interval '5'"
+fi
+```
+
+**Recommended**: Auto-save every 5 minutes prevents data loss.
+
+#### 3. Check Podman Availability (if using containers)
+```bash
+if command -v podman &> /dev/null; then
+  echo "✓ Podman available for containerized agents"
+else
+  echo "ℹ️  Podman not found - containerized agents not available"
+fi
+```
+
+#### 4. Run Automated Checker
+```bash
+./scripts/check-host-setup.sh
+```
+
+This script verifies all prerequisites and provides actionable feedback.
+
+### Startup Sequence for Orchestrator
+
+1. **Check Environment** - Run host checks above
+2. **Verify Current Window** - Know your own tmux location for self-scheduling
+3. **Assess Existing State** - Check for running agents, containers, active projects
+4. **Plan Next Actions** - Based on project priorities and last saved state
+5. **Schedule Next Check-in** - Always schedule yourself before going idle
 
 ## Project Startup Sequence
 

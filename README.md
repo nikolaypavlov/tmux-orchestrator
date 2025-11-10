@@ -103,6 +103,139 @@ claude
 Schedule yourself to check in every hour."
 ```
 
+## 🖥️ Host Setup
+
+### Prerequisites
+
+Before running the orchestrator, ensure your host machine is properly configured:
+
+#### 1. Install tmux-resurrect (Required for Session Persistence)
+
+**macOS:**
+```bash
+# Install TPM (Tmux Plugin Manager)
+git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+```
+
+**Ubuntu/Linux:**
+```bash
+# Same as macOS
+git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+```
+
+Add to `~/.tmux.conf`:
+```bash
+# Enable TPM
+set -g @plugin 'tmux-plugins/tpm'
+
+# Enable tmux-resurrect for session persistence
+set -g @plugin 'tmux-plugins/tmux-resurrect'
+
+# Auto-save every 5 minutes (highly recommended!)
+set -g @resurrect-save-interval '5'
+
+# Initialize TPM (keep this at bottom of .tmux.conf)
+run '~/.tmux/plugins/tpm/tpm'
+```
+
+Then install plugins:
+```bash
+# Inside tmux, press: Ctrl-b + I (capital i)
+# Or run: ~/.tmux/plugins/tpm/bin/install_plugins
+```
+
+**Using tmux-resurrect:**
+- `Ctrl-b Ctrl-s` - Manually save session
+- `Ctrl-b Ctrl-r` - Restore last saved session
+- Auto-saves every 5 minutes (configured above)
+
+#### 2. Install Podman (Optional, for Containerized Agents)
+
+**macOS:**
+```bash
+brew install podman
+
+# Initialize Podman machine
+podman machine init
+podman machine start
+```
+
+**Ubuntu/Linux:**
+```bash
+sudo apt update
+sudo apt install podman
+```
+
+#### 3. Verify Setup
+
+Run the setup checker:
+```bash
+./scripts/check-host-setup.sh
+```
+
+This will verify:
+- ✓ tmux installation
+- ✓ tmux-resurrect plugin
+- ✓ Auto-save configuration
+- ✓ Podman availability
+- ✓ Python 3 for utilities
+
+## 🐳 Containerized Agents (Optional)
+
+For improved security and isolation, agents can run in Podman containers.
+
+### Build Container Image
+
+```bash
+# Build the agent container image
+podman build -t tmux-orchestrator:latest containers/
+```
+
+### Spawn Containerized Agent
+
+```bash
+# Create a containerized developer agent
+./scripts/spawn-agent.sh \
+  --role developer \
+  --project ~/my-project \
+  --name myproject-dev \
+  --firewall
+
+# Connect to the agent
+podman exec -it myproject-dev /bin/zsh
+
+# Inside container, start Claude
+claude
+```
+
+### Send Messages to Containerized Agents
+
+The existing scripts automatically detect containers:
+
+```bash
+# Send to containerized agent (automatically detected)
+./send-claude-message.sh myproject-dev "Status update please"
+
+# Send to host tmux session
+./send-claude-message.sh frontend:0 "Your message"
+```
+
+### Container Management
+
+```bash
+# List running agent containers
+podman ps
+
+# Stop an agent
+podman stop myproject-dev
+
+# Cleanup stopped containers
+./scripts/cleanup-agents.sh
+
+# Cleanup with volumes
+./scripts/cleanup-agents.sh --volumes
+```
+
 ## ✨ Key Features
 
 ### 🔄 Self-Scheduling Agents

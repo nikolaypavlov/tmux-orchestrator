@@ -3,6 +3,7 @@
 import subprocess
 import json
 import time
+import shutil
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
@@ -13,12 +14,19 @@ class TmuxWindow:
     window_index: int
     window_name: str
     active: bool
-    
+
 @dataclass
 class TmuxSession:
     name: str
     windows: List[TmuxWindow]
     attached: bool
+
+@dataclass
+class PodmanContainer:
+    name: str
+    status: str
+    image: str
+    created: str
 
 class TmuxOrchestrator:
     def __init__(self):
@@ -171,21 +179,21 @@ class TmuxOrchestrator:
     def create_monitoring_snapshot(self) -> str:
         """Create a comprehensive snapshot for Claude analysis"""
         status = self.get_all_windows_status()
-        
+
         # Format for Claude consumption
         snapshot = f"Tmux Monitoring Snapshot - {status['timestamp']}\n"
         snapshot += "=" * 50 + "\n\n"
-        
+
         for session in status['sessions']:
             snapshot += f"Session: {session['name']} ({'ATTACHED' if session['attached'] else 'DETACHED'})\n"
             snapshot += "-" * 30 + "\n"
-            
+
             for window in session['windows']:
                 snapshot += f"  Window {window['index']}: {window['name']}"
                 if window['active']:
                     snapshot += " (ACTIVE)"
                 snapshot += "\n"
-                
+
                 if 'content' in window['info']:
                     # Get last 10 lines for overview
                     content_lines = window['info']['content'].split('\n')
@@ -195,8 +203,152 @@ class TmuxOrchestrator:
                         if line.strip():
                             snapshot += f"    | {line}\n"
                 snapshot += "\n"
-        
+
         return snapshot
+
+    # ===== Podman Container Support =====
+
+    def has_podman(self) -> bool:
+        """Check if Podman is available"""
+        return shutil.which('podman') is not None
+
+    def get_podman_containers(self, all_containers: bool = False) -> List[PodmanContainer]:
+        """Get list of Podman containers (running or all)"""
+        if not self.has_podman():
+            return []
+
+        try:
+            cmd = ["podman", "ps", "--format", "json"]
+            if all_containers:
+                cmd.append("-a")
+
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            containers_data = json.loads(result.stdout)
+
+            containers = []
+            for container in containers_data:
+                containers.append(PodmanContainer(
+                    name=container.get('Names', ['unknown'])[0] if isinstance(container.get('Names'), list) else container.get('Names', 'unknown'),
+                    status=container.get('State', 'unknown'),
+                    image=container.get('Image', 'unknown'),
+                    created=container.get('Created', 'unknown')
+                ))
+
+            return containers
+        except subprocess.CalledProcessError as e:
+            print(f"Error getting Podman containers: {e}")
+            return []
+        except json.JSONDecodeError as e:
+            print(f"Error parsing Podman output: {e}")
+            return []
+
+    def exec_in_container(self, container_name: str, command: List[str]) -> Tuple[bool, str]:
+        """Execute command in a Podman container"""
+        if not self.has_podman():
+            return False, "Podman not available"
+
+        try:
+            cmd = ["podman", "exec", container_name] + command
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return True, result.stdout
+        except subprocess.CalledProcessError as e:
+            return False, f"Error: {e.stderr}"
+
+    def capture_container_tmux_window(self, container_name: str, tmux_target: str, num_lines: int = 50) -> str:
+        """Capture tmux window content from inside a container"""
+        if num_lines > self.max_lines_capture:
+            num_lines = self.max_lines_capture
+
+        success, output = self.exec_in_container(
+            container_name,
+            ["tmux", "capture-pane", "-t", tmux_target, "-p", "-S", f"-{num_lines}"]
+        )
+
+        if success:
+            return output
+        else:
+            return f"Error capturing container window: {output}"
+
+    def send_to_container(self, container_name: str, tmux_target: str, message: str) -> bool:
+        """Send message to tmux session inside a container"""
+        if not self.has_podman():
+            print("Podman not available")
+            return False
+
+        try:
+            # Send message
+            subprocess.run(
+                ["podman", "exec", container_name, "tmux", "send-keys", "-t", tmux_target, message],
+                check=True
+            )
+            time.sleep(0.5)
+            # Send Enter
+            subprocess.run(
+                ["podman", "exec", container_name, "tmux", "send-keys", "-t", tmux_target, "Enter"],
+                check=True
+            )
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"Error sending to container: {e}")
+            return False
+
+    def get_container_tmux_sessions(self, container_name: str) -> List[str]:
+        """Get tmux sessions running inside a container"""
+        success, output = self.exec_in_container(
+            container_name,
+            ["tmux", "ls", "-F", "#{session_name}"]
+        )
+
+        if success:
+            return [line.strip() for line in output.split('\n') if line.strip()]
+        else:
+            return []
+
+    def is_container_running(self, container_name: str) -> bool:
+        """Check if a specific container is running"""
+        containers = self.get_podman_containers(all_containers=False)
+        return any(c.name == container_name for c in containers)
+
+    def get_comprehensive_status(self) -> Dict:
+        """Get status of both host tmux and containerized agents"""
+        status = {
+            "timestamp": datetime.now().isoformat(),
+            "host": {
+                "tmux_sessions": []
+            },
+            "containers": []
+        }
+
+        # Get host tmux sessions
+        sessions = self.get_tmux_sessions()
+        for session in sessions:
+            session_data = {
+                "name": session.name,
+                "attached": session.attached,
+                "windows": [
+                    {
+                        "index": w.window_index,
+                        "name": w.window_name,
+                        "active": w.active
+                    }
+                    for w in session.windows
+                ]
+            }
+            status["host"]["tmux_sessions"].append(session_data)
+
+        # Get containerized agents
+        if self.has_podman():
+            containers = self.get_podman_containers()
+            for container in containers:
+                container_data = {
+                    "name": container.name,
+                    "status": container.status,
+                    "image": container.image,
+                    "tmux_sessions": self.get_container_tmux_sessions(container.name)
+                }
+                status["containers"].append(container_data)
+
+        return status
 
 if __name__ == "__main__":
     orchestrator = TmuxOrchestrator()
