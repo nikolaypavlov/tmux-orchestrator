@@ -227,7 +227,8 @@ When starting as orchestrator, perform these checks FIRST:
 
 #### 1. Check tmux-resurrect Installation
 ```bash
-if [ ! -d "$HOME/.tmux/plugins/tmux-resurrect" ]; then
+# Check both standard and XDG locations
+if [ ! -d "$HOME/.tmux/plugins/tmux-resurrect" ] && [ ! -d "$HOME/.config/tmux/plugins/tmux-resurrect" ]; then
   echo "⚠️  WARNING: tmux-resurrect not installed!"
   echo "Session persistence disabled. Install it for better reliability."
   echo "See README.md 'Host Setup' section for instructions."
@@ -236,9 +237,19 @@ fi
 
 **Why this matters**: Without tmux-resurrect, all session state is lost on disconnect. This defeats the purpose of 24/7 autonomous operation.
 
+**Note**: tmux-resurrect can be installed in either `~/.tmux/plugins/tmux-resurrect` (standard) or `~/.config/tmux/plugins/tmux-resurrect` (XDG). The check-host-setup.sh script verifies both locations.
+
 #### 2. Verify tmux-resurrect Configuration
 ```bash
-if grep -q "@resurrect-save-interval" "$HOME/.tmux.conf"; then
+# Check both possible config locations
+TMUX_CONF=""
+if [ -f "$HOME/.tmux.conf" ]; then
+  TMUX_CONF="$HOME/.tmux.conf"
+elif [ -f "$HOME/.config/tmux/tmux.conf" ]; then
+  TMUX_CONF="$HOME/.config/tmux/tmux.conf"
+fi
+
+if [ -n "$TMUX_CONF" ] && grep -q "@resurrect-save-interval" "$TMUX_CONF"; then
   echo "✓ Auto-save configured"
 else
   echo "⚠️  Consider adding: set -g @resurrect-save-interval '5'"
@@ -246,6 +257,8 @@ fi
 ```
 
 **Recommended**: Auto-save every 5 minutes prevents data loss.
+
+**Note**: Configuration can be in either `~/.tmux.conf` (standard) or `~/.config/tmux/tmux.conf` (XDG).
 
 #### 3. Check Podman Availability (if using containers)
 ```bash

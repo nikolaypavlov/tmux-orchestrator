@@ -114,16 +114,21 @@ Before running the orchestrator, ensure your host machine is properly configured
 **macOS:**
 ```bash
 # Install TPM (Tmux Plugin Manager)
+# Standard location:
 git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+# Or XDG location:
+git clone https://github.com/tmux-plugins/tpm ~/.config/tmux/plugins/tpm
 ```
 
 **Ubuntu/Linux:**
 ```bash
-# Same as macOS
+# Same as macOS - choose standard or XDG location
 git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+# Or:
+git clone https://github.com/tmux-plugins/tpm ~/.config/tmux/plugins/tpm
 ```
 
-Add to `~/.tmux.conf`:
+Add to `~/.tmux.conf` or `~/.config/tmux/tmux.conf`:
 ```bash
 # Enable TPM
 set -g @plugin 'tmux-plugins/tpm'
@@ -134,14 +139,18 @@ set -g @plugin 'tmux-plugins/tmux-resurrect'
 # Auto-save every 5 minutes (highly recommended!)
 set -g @resurrect-save-interval '5'
 
-# Initialize TPM (keep this at bottom of .tmux.conf)
+# Initialize TPM (keep this at bottom of config)
+# Adjust path based on your installation location:
 run '~/.tmux/plugins/tpm/tpm'
+# Or for XDG:
+# run '~/.config/tmux/plugins/tpm/tpm'
 ```
 
 Then install plugins:
 ```bash
 # Inside tmux, press: Ctrl-b + I (capital i)
 # Or run: ~/.tmux/plugins/tpm/bin/install_plugins
+# (or ~/.config/tmux/plugins/tpm/bin/install_plugins for XDG)
 ```
 
 **Using tmux-resurrect:**

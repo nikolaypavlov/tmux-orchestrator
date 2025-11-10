@@ -29,36 +29,67 @@ fi
 
 # Check 2: TPM (Tmux Plugin Manager) installed
 echo -n "Checking TPM installation... "
+TPM_FOUND=false
+TPM_LOCATION=""
 if [ -d "$HOME/.tmux/plugins/tpm" ]; then
-    echo -e "${GREEN}✓${NC} Found"
+    TPM_FOUND=true
+    TPM_LOCATION="$HOME/.tmux/plugins/tpm"
+elif [ -d "$HOME/.config/tmux/plugins/tpm" ]; then
+    TPM_FOUND=true
+    TPM_LOCATION="$HOME/.config/tmux/plugins/tpm"
+fi
+
+if [ "$TPM_FOUND" = true ]; then
+    echo -e "${GREEN}✓${NC} Found at $TPM_LOCATION"
 else
     echo -e "${YELLOW}⚠${NC} Not found"
-    echo "  Install with: git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm"
+    echo "  Install with:"
+    echo "    git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm"
+    echo "    or: git clone https://github.com/tmux-plugins/tpm ~/.config/tmux/plugins/tpm"
     ((WARNINGS++))
 fi
 
 # Check 3: tmux-resurrect plugin installed
 echo -n "Checking tmux-resurrect plugin... "
+RESURRECT_FOUND=false
+RESURRECT_LOCATION=""
 if [ -d "$HOME/.tmux/plugins/tmux-resurrect" ]; then
-    echo -e "${GREEN}✓${NC} Found"
+    RESURRECT_FOUND=true
+    RESURRECT_LOCATION="$HOME/.tmux/plugins/tmux-resurrect"
+elif [ -d "$HOME/.config/tmux/plugins/tmux-resurrect" ]; then
+    RESURRECT_FOUND=true
+    RESURRECT_LOCATION="$HOME/.config/tmux/plugins/tmux-resurrect"
+fi
+
+if [ "$RESURRECT_FOUND" = true ]; then
+    echo -e "${GREEN}✓${NC} Found at $RESURRECT_LOCATION"
 else
     echo -e "${RED}✗${NC} Not found"
-    echo "  Install with: git clone https://github.com/tmux-plugins/tmux-resurrect ~/.tmux/plugins/tmux-resurrect"
-    echo "  Or install via TPM by adding to .tmux.conf:"
+    echo "  Install with:"
+    echo "    git clone https://github.com/tmux-plugins/tmux-resurrect ~/.tmux/plugins/tmux-resurrect"
+    echo "    or: git clone https://github.com/tmux-plugins/tmux-resurrect ~/.config/tmux/plugins/tmux-resurrect"
+    echo "  Or install via TPM by adding to tmux config:"
     echo "    set -g @plugin 'tmux-plugins/tmux-resurrect'"
     echo "  Then press Ctrl-b + I to install"
     ((ERRORS++))
 fi
 
-# Check 4: .tmux.conf exists and has resurrect config
-echo -n "Checking .tmux.conf configuration... "
+# Check 4: tmux.conf exists and has resurrect config
+echo -n "Checking tmux configuration... "
+TMUX_CONF=""
 if [ -f "$HOME/.tmux.conf" ]; then
-    if grep -q "tmux-resurrect" "$HOME/.tmux.conf"; then
-        echo -e "${GREEN}✓${NC} Found resurrect configuration"
+    TMUX_CONF="$HOME/.tmux.conf"
+elif [ -f "$HOME/.config/tmux/tmux.conf" ]; then
+    TMUX_CONF="$HOME/.config/tmux/tmux.conf"
+fi
+
+if [ -n "$TMUX_CONF" ]; then
+    if grep -q "tmux-resurrect" "$TMUX_CONF"; then
+        echo -e "${GREEN}✓${NC} Found resurrect configuration in $TMUX_CONF"
 
         # Check for auto-save interval
-        if grep -q "@resurrect-save-interval" "$HOME/.tmux.conf"; then
-            INTERVAL=$(grep "@resurrect-save-interval" "$HOME/.tmux.conf" | grep -oE "'[0-9]+'" | tr -d "'")
+        if grep -q "@resurrect-save-interval" "$TMUX_CONF"; then
+            INTERVAL=$(grep "@resurrect-save-interval" "$TMUX_CONF" | grep -oE "'[0-9]+'" | tr -d "'")
             echo "  Auto-save interval: ${INTERVAL} minutes"
             if [ "$INTERVAL" != "5" ]; then
                 echo -e "  ${YELLOW}⚠${NC} Recommended interval is 5 minutes"
@@ -66,19 +97,19 @@ if [ -f "$HOME/.tmux.conf" ]; then
             fi
         else
             echo -e "  ${YELLOW}⚠${NC} Auto-save not configured (recommended: 5 minutes)"
-            echo "  Add to .tmux.conf: set -g @resurrect-save-interval '5'"
+            echo "  Add to config: set -g @resurrect-save-interval '5'"
             ((WARNINGS++))
         fi
     else
-        echo -e "${YELLOW}⚠${NC} resurrect not configured"
-        echo "  Add to .tmux.conf:"
+        echo -e "${YELLOW}⚠${NC} resurrect not configured in $TMUX_CONF"
+        echo "  Add to config:"
         echo "    set -g @plugin 'tmux-plugins/tmux-resurrect'"
         echo "    set -g @resurrect-save-interval '5'"
         ((WARNINGS++))
     fi
 else
-    echo -e "${YELLOW}⚠${NC} .tmux.conf not found"
-    echo "  Create one with resurrect configuration"
+    echo -e "${YELLOW}⚠${NC} tmux.conf not found"
+    echo "  Create one at ~/.tmux.conf or ~/.config/tmux/tmux.conf"
     ((WARNINGS++))
 fi
 
