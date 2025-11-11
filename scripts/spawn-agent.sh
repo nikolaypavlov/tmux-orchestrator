@@ -117,21 +117,11 @@ if [ "$ENABLE_FIREWALL" = true ]; then
     echo "Firewall enabled: container will have restricted network access"
 fi
 
-# Add Anthropic credentials from Keychain
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS - get token from Keychain
-    ANTHROPIC_TOKEN=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken' 2>/dev/null || echo "")
-
-    if [ -n "$ANTHROPIC_TOKEN" ] && [ "$ANTHROPIC_TOKEN" != "null" ]; then
-        echo "✓ Found Claude Code OAuth token in Keychain"
-        PODMAN_ARGS+=("-e" "ANTHROPIC_API_KEY=$ANTHROPIC_TOKEN")
-    else
-        echo "⚠️  Warning: No Anthropic credentials found in Keychain"
-    fi
-else
-    # Linux - would need different approach
-    echo "⚠️  Warning: Token extraction from Keychain only supported on macOS"
-fi
+# Mount volume for Claude credentials persistence
+# Claude stores OAuth tokens in /home/claude/.claude/.credentials.json
+# This volume persists credentials between container restarts
+PODMAN_ARGS+=("-v" "${CONTAINER_NAME}-claude-config:/home/claude/.claude:Z")
+echo "Mounting Claude config volume for OAuth persistence"
 
 # Run the container
 echo "Spawning agent container..."
@@ -164,9 +154,9 @@ if [ "$AUTO_INIT" = true ]; then
     podman cp "$SCRIPT_DIR/container-init.sh" "$CONTAINER_NAME:/tmp/container-init.sh"
 
     # Copy templates to container
-    podman exec "$CONTAINER_NAME" mkdir -p /opt/tmux-orchestrator/templates
-    podman cp "$SCRIPT_DIR/../templates/pm-briefing.txt" "$CONTAINER_NAME:/opt/tmux-orchestrator/templates/pm-briefing.txt"
-    podman cp "$SCRIPT_DIR/../templates/developer-briefing.txt" "$CONTAINER_NAME:/opt/tmux-orchestrator/templates/developer-briefing.txt"
+    podman exec "$CONTAINER_NAME" mkdir -p /home/claude/.tmux-orchestrator/templates
+    podman cp "$SCRIPT_DIR/../templates/pm-briefing.txt" "$CONTAINER_NAME:/home/claude/.tmux-orchestrator/templates/pm-briefing.txt"
+    podman cp "$SCRIPT_DIR/../templates/developer-briefing.txt" "$CONTAINER_NAME:/home/claude/.tmux-orchestrator/templates/developer-briefing.txt"
 
     # Run init script
     podman exec "$CONTAINER_NAME" bash /tmp/container-init.sh "$PROJECT_NAME" "$CONTAINER_NAME"

@@ -23,12 +23,16 @@ echo "Creating orchestrator session..."
 # Create tmux session named "orchestrator"
 tmux new-session -d -s orchestrator
 
-# Rename window 0
-tmux rename-window -t orchestrator:0 "Orchestrator"
+# Get base-index to use correct window number
+BASE_INDEX=$(tmux show-options -g base-index | awk '{print $2}')
+BASE_INDEX=${BASE_INDEX:-0}
+
+# Rename first window
+tmux rename-window -t orchestrator:$BASE_INDEX "Orchestrator"
 
 # Start Claude
 echo "Starting Claude as Orchestrator..."
-tmux send-keys -t orchestrator:0 "claude" Enter
+tmux send-keys -t orchestrator:$BASE_INDEX "claude" Enter
 
 # Wait for Claude to start
 echo "Waiting for Claude to initialize..."
@@ -41,9 +45,9 @@ if [ -f "$TEMPLATE_PATH" ]; then
 
     # Send briefing
     echo "Briefing Orchestrator..."
-    tmux send-keys -t orchestrator:0 "$BRIEFING"
+    tmux send-keys -t orchestrator:$BASE_INDEX "$BRIEFING"
     sleep 0.5
-    tmux send-keys -t orchestrator:0 Enter
+    tmux send-keys -t orchestrator:$BASE_INDEX Enter
 
     echo "✓ Orchestrator briefed successfully"
 else

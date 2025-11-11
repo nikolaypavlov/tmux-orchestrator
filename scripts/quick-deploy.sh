@@ -80,12 +80,12 @@ echo "========================================="
 echo ""
 
 # Step 1: Setup orchestrator
-echo "Step 1/3: Checking orchestrator..."
+echo "Step 1/4: Checking orchestrator..."
 "$SCRIPT_DIR/setup-orchestrator.sh"
 echo ""
 
 # Step 2: Spawn container with auto-init
-echo "Step 2/3: Spawning agent container..."
+echo "Step 2/4: Spawning agent container..."
 SPAWN_ARGS=(
     "$SCRIPT_DIR/spawn-agent.sh"
     "--role" "pm"
@@ -101,9 +101,37 @@ fi
 "${SPAWN_ARGS[@]}"
 echo ""
 
-# Step 3: Notify orchestrator about new project
-echo "Step 3/3: Notifying orchestrator..."
+# Step 2.5: OAuth login if needed
+echo "Step 2.5/4: Checking authentication..."
+
+# Get base-index for tmux
+BASE_INDEX=$(tmux show-options -g base-index 2>/dev/null | awk '{print $2}')
+BASE_INDEX=${BASE_INDEX:-0}
+
+# Check if credentials exist in volume
+if ! podman exec "$CONTAINER_NAME" test -f /home/claude/.claude/.credentials.json 2>/dev/null; then
+    echo "No credentials found - starting OAuth flow..."
+    echo ""
+
+    # Run OAuth login helper
+    "$SCRIPT_DIR/oauth-login.sh" "$CONTAINER_NAME" "$BASE_INDEX" || {
+        echo "⚠️  OAuth login failed or was cancelled"
+        echo "You can run it manually later with:"
+        echo "  ./scripts/oauth-login.sh $CONTAINER_NAME $BASE_INDEX"
+    }
+else
+    echo "✓ Found existing credentials"
+fi
+
+echo ""
+
+# Step 4: Notify orchestrator about new project
+echo "Step 4/4: Notifying orchestrator..."
 sleep 2  # Give PM a moment to initialize
+
+# Get base-index for orchestrator
+BASE_INDEX=$(tmux show-options -g base-index 2>/dev/null | awk '{print $2}')
+BASE_INDEX=${BASE_INDEX:-0}
 
 # Send notification to orchestrator
 NOTIFICATION="NEW PROJECT DEPLOYED:
@@ -113,13 +141,13 @@ Location: $PROJECT_PATH
 PM Status: Initializing team...
 
 Use these commands to monitor:
-- View PM: podman exec $CONTAINER_NAME tmux capture-pane -t $PROJECT_NAME:0 -p | tail -50
+- View PM: podman exec $CONTAINER_NAME tmux capture-pane -t $PROJECT_NAME:$BASE_INDEX -p | tail -50
 - Send message: ./send-claude-message.sh $CONTAINER_NAME \"your message\"
 - Attach to PM: podman exec -it $CONTAINER_NAME tmux attach -t $PROJECT_NAME"
 
-tmux send-keys -t orchestrator:0 "$NOTIFICATION"
+tmux send-keys -t orchestrator:$BASE_INDEX "$NOTIFICATION"
 sleep 0.5
-tmux send-keys -t orchestrator:0 Enter
+tmux send-keys -t orchestrator:$BASE_INDEX Enter
 
 echo -e "${GREEN}✓ Orchestrator notified${NC}"
 echo ""

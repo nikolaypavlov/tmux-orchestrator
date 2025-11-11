@@ -7,7 +7,7 @@ set -e
 
 PROJECT_NAME="${1:-project}"
 CONTAINER_NAME="${2:-$PROJECT_NAME}"
-TEMPLATE_PATH="${3:-/opt/tmux-orchestrator/templates/pm-briefing.txt}"
+TEMPLATE_PATH="${3:-/home/claude/.tmux-orchestrator/templates/pm-briefing.txt}"
 
 echo "=== Container Init for $PROJECT_NAME ==="
 
@@ -29,12 +29,16 @@ echo "Detected project type: $PROJECT_TYPE"
 echo "Creating tmux session: $PROJECT_NAME"
 tmux new-session -d -s "$PROJECT_NAME" -c "/workspace"
 
-# Rename window 0 to Project-Manager
-tmux rename-window -t "$PROJECT_NAME:0" "Project-Manager"
+# Get base-index to use correct window number
+BASE_INDEX=$(tmux show-options -g base-index 2>/dev/null | awk '{print $2}')
+BASE_INDEX=${BASE_INDEX:-0}
 
-# Start Claude in window 0
-echo "Starting Claude as PM in window 0..."
-tmux send-keys -t "$PROJECT_NAME:0" "claude" Enter
+# Rename first window to Project-Manager
+tmux rename-window -t "$PROJECT_NAME:$BASE_INDEX" "Project-Manager"
+
+# Start Claude in first window
+echo "Starting Claude as PM in window $BASE_INDEX..."
+tmux send-keys -t "$PROJECT_NAME:$BASE_INDEX" "claude" Enter
 
 # Wait for Claude to start
 echo "Waiting for Claude to initialize..."
@@ -52,9 +56,9 @@ if [ -f "$TEMPLATE_PATH" ]; then
 
     # Send briefing to PM
     echo "Briefing PM..."
-    tmux send-keys -t "$PROJECT_NAME:0" "$BRIEFING"
+    tmux send-keys -t "$PROJECT_NAME:$BASE_INDEX" "$BRIEFING"
     sleep 0.5
-    tmux send-keys -t "$PROJECT_NAME:0" Enter
+    tmux send-keys -t "$PROJECT_NAME:$BASE_INDEX" Enter
 
     echo "PM briefed successfully"
 else
@@ -62,14 +66,14 @@ else
     echo "Sending basic briefing..."
 
     # Fallback basic briefing
-    tmux send-keys -t "$PROJECT_NAME:0" "You are the Project Manager for $PROJECT_NAME. Analyze the project in /workspace, create a Developer in window 1, and coordinate the team."
+    tmux send-keys -t "$PROJECT_NAME:$BASE_INDEX" "You are the Project Manager for $PROJECT_NAME. Analyze the project in /workspace, create a Developer in window 1, and coordinate the team."
     sleep 0.5
-    tmux send-keys -t "$PROJECT_NAME:0" Enter
+    tmux send-keys -t "$PROJECT_NAME:$BASE_INDEX" Enter
 fi
 
 echo ""
 echo "=== Container Init Complete ==="
-echo "PM is running in: $PROJECT_NAME:0"
+echo "PM is running in: $PROJECT_NAME:$BASE_INDEX"
 echo ""
 echo "To monitor PM:"
 echo "  podman exec $CONTAINER_NAME tmux attach -t $PROJECT_NAME"
