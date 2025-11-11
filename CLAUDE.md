@@ -116,6 +116,230 @@ Containers built from `containers/Dockerfile` include:
 - **Shell aliases** configured (`cat`→`bat`, `find`→`fd`, `grep`→`rg`)
 - **Network firewall** with approved domains only (GitHub, Anthropic, HuggingFace, GitLab, PyPI, npm)
 
+## 🐳 Container Deployment Architecture
+
+### Hybrid Architecture
+
+The containerized deployment model uses a **hybrid approach** for optimal security and flexibility:
+
+```
+┌─────────────────────────────────────────┐
+│           HOST MACHINE                  │
+│  ┌───────────────────────────────────┐  │
+│  │   Orchestrator (tmux session)     │  │
+│  │   - High-level coordination       │  │
+│  │   - Cross-project oversight       │  │
+│  │   - System monitoring             │  │
+│  └───────────────┬───────────────────┘  │
+│                  │                       │
+│     ┌────────────┼────────────┐          │
+│     ▼            ▼            ▼          │
+│  ┌──────┐    ┌──────┐    ┌──────┐      │
+│  │Cont 1│    │Cont 2│    │Cont 3│      │
+│  │      │    │      │    │      │      │
+│  │  PM  │    │  PM  │    │  PM  │      │
+│  │  ├Dev│    │  ├Dev│    │  ├Dev│      │
+│  │  ├QA │    │  └Dev│    │  └Dev│      │
+│  └──────┘    └──────┘    └──────┘      │
+│  Project A   Project B   Project C      │
+└─────────────────────────────────────────┘
+```
+
+**Key Principles:**
+- **Orchestrator on Host**: Persistent, always accessible, coordinates everything
+- **One Container per Project**: Complete isolation between projects
+- **PM + Team in Container**: Each container has PM (window 0) and team members (windows 1-4)
+- **Bind Mount Projects**: Host project directories mounted at `/workspace` in containers
+- **Network Firewall**: Containers have restricted network access (approved domains only)
+
+### One-Command Deployment
+
+Deploy a complete agent team for any project:
+
+```bash
+./scripts/quick-deploy.sh ~/repos/my-project [--firewall]
+```
+
+**What This Does:**
+
+1. **Setup Orchestrator** (`setup-orchestrator.sh`)
+   - Creates `orchestrator` tmux session on host (if not exists)
+   - Starts Claude with orchestrator briefing from template
+   - Prepares for project coordination
+
+2. **Spawn Container** (`spawn-agent.sh --auto-init`)
+   - Creates Podman container with project name
+   - Mounts project at `/workspace`
+   - Creates logs volume for persistence
+   - Mounts `~/.anthropic` credentials (readonly)
+   - Applies firewall if `--firewall` flag set
+
+3. **Initialize PM and Team** (`container-init.sh`)
+   - Runs inside container
+   - Detects project type (Node.js, Python, Go, Rust)
+   - Creates tmux session with project name
+   - Starts Claude as PM in window 0
+   - Loads PM briefing template with substitutions
+   - PM autonomously creates Developer team
+
+4. **Notify Orchestrator**
+   - Sends project status to orchestrator
+   - Provides monitoring commands
+   - Establishes communication channel
+
+### Template-Based Briefing System
+
+Briefings are loaded from `templates/` directory with placeholder substitution:
+
+**Available Templates:**
+- `orchestrator-briefing.txt` - High-level coordination role
+- `pm-briefing.txt` - Project manager with team setup instructions
+- `developer-briefing.txt` - Developer with coding standards
+
+**Template Placeholders:**
+- `{{PROJECT_NAME}}` - Name of the project
+- `{{CONTAINER_NAME}}` - Container identifier
+- `{{PROJECT_TYPE}}` - Detected type (nodejs, python, go, rust)
+
+**Example Substitution:**
+```bash
+# Template: pm-briefing.txt
+"You are managing {{PROJECT_NAME}} in container {{CONTAINER_NAME}}"
+
+# After substitution:
+"You are managing example-project in container example-project"
+```
+
+### Container Initialization Process
+
+**Inside Container Flow:**
+
+1. **Project Detection** (`container-init.sh`)
+   ```bash
+   # Checks for:
+   # - package.json → nodejs
+   # - requirements.txt or pyproject.toml → python
+   # - go.mod → go
+   # - Cargo.toml → rust
+   ```
+
+2. **Tmux Session Creation**
+   ```bash
+   # Creates session named after project
+   tmux new-session -d -s "my-project" -c "/workspace"
+   tmux rename-window -t "my-project:0" "Project-Manager"
+   ```
+
+3. **PM Startup**
+   ```bash
+   # Start Claude
+   tmux send-keys -t "my-project:0" "claude" Enter
+   sleep 5  # Wait for initialization
+
+   # Load and send briefing
+   BRIEFING=$(cat /opt/tmux-orchestrator/templates/pm-briefing.txt)
+   # Replace placeholders
+   tmux send-keys -t "my-project:0" "$BRIEFING" Enter
+   ```
+
+4. **Autonomous Team Setup**
+   - PM analyzes `/workspace` project structure
+   - Creates Developer in window 1
+   - Briefs Developer with template
+   - Developer starts dev server in window 2
+   - QA/DevOps created as needed
+
+### Communication Patterns
+
+**Host → Container:**
+```bash
+# Using send-claude-message.sh (auto-detects containers)
+./send-claude-message.sh container-name "Your message"
+
+# Or direct podman exec
+podman exec container-name tmux send-keys -t session:0 "message"
+```
+
+**Container → Host:**
+- PM sends status updates that orchestrator can read via `podman exec`
+- Orchestrator periodically checks container panes
+
+**Container → Container:**
+- Via orchestrator relay (hub-and-spoke)
+- Prevents n² communication complexity
+
+### Monitoring Containerized Agents
+
+**Check PM Status:**
+```bash
+podman exec my-project tmux capture-pane -t my-project:0 -p | tail -50
+```
+
+**Check Developer Status:**
+```bash
+podman exec my-project tmux capture-pane -t my-project:1 -p | tail -50
+```
+
+**Check Dev Server Logs:**
+```bash
+podman exec my-project tmux capture-pane -t my-project:2 -p | tail -50
+```
+
+**Full Interactive Access:**
+```bash
+# Attach to PM session
+podman exec -it my-project tmux attach -t my-project
+
+# Or start shell first
+podman exec -it my-project /bin/zsh
+```
+
+### Project Isolation Benefits
+
+**Security:**
+- Firewall prevents unauthorized network access
+- Read-only credential mounting
+- No cross-project file access
+- Contained blast radius for issues
+
+**Resource Management:**
+- Each project gets dedicated resources
+- Easy cleanup with container removal
+- Logs isolated per project
+- No dependency conflicts
+
+**Development:**
+- Project-specific tool versions
+- Independent virtual environments
+- Parallel work on multiple projects
+- Clean state for each project
+
+### Container Management
+
+**List All Agent Containers:**
+```bash
+podman ps --filter "ancestor=tmux-orchestrator:latest"
+```
+
+**Stop Project:**
+```bash
+podman stop my-project
+```
+
+**Remove Project Container:**
+```bash
+podman rm my-project
+# Add -v to remove volumes (logs)
+podman rm -v my-project
+```
+
+**Cleanup All Stopped Agents:**
+```bash
+./scripts/cleanup-agents.sh
+# With volumes:
+./scripts/cleanup-agents.sh --volumes
+```
+
 ## 🔐 Git Discipline - MANDATORY FOR ALL AGENTS
 
 ### Core Git Safety Rules

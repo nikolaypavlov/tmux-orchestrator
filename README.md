@@ -56,51 +56,69 @@ The Tmux Orchestrator uses a three-tier hierarchy to overcome context window lim
 
 ## 🎯 Quick Start
 
-### Option 1: Basic Setup (Single Project)
+### One-Command Deployment (Recommended)
+
+Deploy a complete AI agent team for any project in one command:
 
 ```bash
-# 1. Create a project spec
-cat > project_spec.md << 'EOF'
-PROJECT: My Web App
-GOAL: Add user authentication system
-CONSTRAINTS:
-- Use existing database schema
-- Follow current code patterns  
-- Commit every 30 minutes
-- Write tests for new features
+# 1. Build the container image (first time only)
+podman build -t tmux-orchestrator:latest containers/
 
-DELIVERABLES:
-1. Login/logout endpoints
-2. User session management
-3. Protected route middleware
-EOF
+# 2. Deploy agent team for your project
+./scripts/quick-deploy.sh ~/repos/my-project
 
-# 2. Start tmux session
-tmux new-session -s my-project
-
-# 3. Start project manager in window 0
-claude
-
-# 4. Give PM the spec and let it create an engineer
-"You are a Project Manager. Read project_spec.md and create an engineer 
-in window 1 to implement it. Schedule check-ins every 30 minutes."
-
-# 5. Schedule orchestrator check-in
-./schedule_with_note.sh 30 "Check PM progress on auth system"
+# Optional: Enable network firewall
+./scripts/quick-deploy.sh ~/repos/my-project --firewall
 ```
 
-### Option 2: Full Orchestrator Setup
+That's it! This single command will:
+1. ✅ Create orchestrator on host (if not exists)
+2. ✅ Spawn containerized PM with auto-initialized team
+3. ✅ Notify orchestrator about the new project
+4. ✅ Start autonomous work on the codebase
+
+### Monitor Your Agents
 
 ```bash
-# Start the orchestrator
-tmux new-session -s orchestrator
-claude
+# View orchestrator
+tmux attach -t orchestrator
 
-# Give it your projects
-"You are the Orchestrator. Set up project managers for:
-1. Frontend (React app) - Add dashboard charts
-2. Backend (FastAPI) - Optimize database queries
-Schedule yourself to check in every hour."
+# Check PM status
+podman exec my-project tmux capture-pane -t my-project:0 -p | tail -50
+
+# Send message to PM
+./send-claude-message.sh my-project "Status update please"
+
+# Attach to PM session (full interactivity)
+podman exec -it my-project tmux attach -t my-project
+
+# List all running containers
+podman ps
+```
+
+### What Happens Behind the Scenes
+
+1. **Orchestrator Setup**: Creates tmux session on host, starts Claude with orchestrator briefing
+2. **Container Spawn**: Creates Podman container with project mounted at `/workspace`
+3. **PM Initialization**: Inside container, creates tmux session, starts Claude as PM, loads briefing template
+4. **Autonomous Operation**: PM analyzes project, creates Developer team, starts work
+5. **Notification**: Orchestrator receives project status and monitoring commands
+
+### Manual Setup (Advanced)
+
+For more control over the setup process, you can use individual scripts:
+
+```bash
+# 1. Setup orchestrator manually
+./scripts/setup-orchestrator.sh
+
+# 2. Spawn agent with custom options
+./scripts/spawn-agent.sh \
+  --role pm \
+  --project ~/repos/my-project \
+  --name my-project \
+  --auto-init \
+  --firewall
 ```
 
 ## 🖥️ Host Setup

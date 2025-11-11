@@ -9,7 +9,11 @@ ROLE="developer"
 PROJECT_PATH=""
 CONTAINER_NAME=""
 ENABLE_FIREWALL=false
+AUTO_INIT=false
 IMAGE_NAME="tmux-orchestrator:latest"
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -30,18 +34,23 @@ while [[ $# -gt 0 ]]; do
             ENABLE_FIREWALL=true
             shift
             ;;
+        --auto-init)
+            AUTO_INIT=true
+            shift
+            ;;
         --image)
             IMAGE_NAME="$2"
             shift 2
             ;;
         -h|--help)
-            echo "Usage: spawn-agent.sh --role <role> --project <path> --name <container-name> [--firewall]"
+            echo "Usage: spawn-agent.sh --role <role> --project <path> --name <container-name> [--firewall] [--auto-init]"
             echo ""
             echo "Options:"
             echo "  --role <role>        Agent role (developer, qa, devops, pm, etc.)"
             echo "  --project <path>     Path to project directory (will be mounted at /workspace)"
             echo "  --name <name>        Container name (required)"
             echo "  --firewall           Enable firewall restrictions (requires CAP_NET_ADMIN)"
+            echo "  --auto-init          Automatically initialize PM and team in container"
             echo "  --image <image>      Docker image name (default: tmux-orchestrator:latest)"
             echo "  -h, --help           Show this help message"
             exit 0
@@ -131,11 +140,42 @@ fi
 
 echo ""
 echo "Agent container spawned successfully!"
-echo ""
-echo "Next steps:"
-echo "  1. Connect to container: podman exec -it $CONTAINER_NAME /bin/zsh"
-echo "  2. Start Claude: claude"
-echo "  3. Or send message: ./scripts/send-to-agent.sh $CONTAINER_NAME \"Your message\""
+
+# Auto-initialize if requested
+if [ "$AUTO_INIT" = true ]; then
+    echo ""
+    echo "Auto-initializing PM and team..."
+
+    # Extract project name from path
+    PROJECT_NAME=$(basename "$PROJECT_PATH")
+
+    # Copy init script to container
+    podman cp "$SCRIPT_DIR/container-init.sh" "$CONTAINER_NAME:/tmp/container-init.sh"
+
+    # Copy templates to container
+    podman exec "$CONTAINER_NAME" mkdir -p /opt/tmux-orchestrator/templates
+    podman cp "$SCRIPT_DIR/../templates/pm-briefing.txt" "$CONTAINER_NAME:/opt/tmux-orchestrator/templates/pm-briefing.txt"
+    podman cp "$SCRIPT_DIR/../templates/developer-briefing.txt" "$CONTAINER_NAME:/opt/tmux-orchestrator/templates/developer-briefing.txt"
+
+    # Run init script
+    podman exec "$CONTAINER_NAME" bash /tmp/container-init.sh "$PROJECT_NAME" "$CONTAINER_NAME"
+
+    echo ""
+    echo "✓ PM initialized in container"
+    echo ""
+    echo "Monitor PM:"
+    echo "  podman exec $CONTAINER_NAME tmux capture-pane -t $PROJECT_NAME:0 -p | tail -50"
+    echo ""
+    echo "Attach to PM:"
+    echo "  podman exec -it $CONTAINER_NAME tmux attach -t $PROJECT_NAME"
+else
+    echo ""
+    echo "Next steps:"
+    echo "  1. Connect to container: podman exec -it $CONTAINER_NAME /bin/zsh"
+    echo "  2. Start Claude: claude"
+    echo "  3. Or send message: ./scripts/send-to-agent.sh $CONTAINER_NAME \"Your message\""
+fi
+
 echo ""
 echo "Container info:"
 echo "  Name: $CONTAINER_NAME"
