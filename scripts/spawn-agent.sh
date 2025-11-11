@@ -117,9 +117,20 @@ if [ "$ENABLE_FIREWALL" = true ]; then
     echo "Firewall enabled: container will have restricted network access"
 fi
 
-# Add Anthropic credentials if they exist
-if [ -d "$HOME/.anthropic" ]; then
-    PODMAN_ARGS+=("-v" "$HOME/.anthropic:/home/claude/.anthropic:ro,Z")
+# Add Anthropic credentials from Keychain
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS - get token from Keychain
+    ANTHROPIC_TOKEN=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null | jq -r '.claudeAiOauth.accessToken' 2>/dev/null || echo "")
+
+    if [ -n "$ANTHROPIC_TOKEN" ] && [ "$ANTHROPIC_TOKEN" != "null" ]; then
+        echo "✓ Found Claude Code OAuth token in Keychain"
+        PODMAN_ARGS+=("-e" "ANTHROPIC_API_KEY=$ANTHROPIC_TOKEN")
+    else
+        echo "⚠️  Warning: No Anthropic credentials found in Keychain"
+    fi
+else
+    # Linux - would need different approach
+    echo "⚠️  Warning: Token extraction from Keychain only supported on macOS"
 fi
 
 # Run the container
