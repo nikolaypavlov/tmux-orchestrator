@@ -38,9 +38,27 @@ fi
 echo "Starting OAuth flow..."
 echo ""
 
+# Step 0: Handle theme selection if present
+echo "Checking for theme selection..."
+for i in {1..10}; do
+    if podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_WINDOW}" -p | grep -q "Choose the text style"; then
+        echo "✓ Theme selection found, selecting dark mode..."
+        podman exec "$CONTAINER_NAME" tmux send-keys -t "${CONTAINER_NAME}:${TMUX_WINDOW}" Enter
+        sleep 2
+        break
+    fi
+    sleep 1
+done
+
 # Step 1: Wait for login method selection screen
 echo "Waiting for login method selection..."
-sleep 3
+for i in {1..10}; do
+    if podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_WINDOW}" -p | grep -q "Select login method"; then
+        echo "✓ Login method selection screen found"
+        break
+    fi
+    sleep 1
+done
 
 # Check if we need to select OAuth method
 if podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_WINDOW}" -p | grep -q "Select login method"; then
@@ -52,14 +70,18 @@ fi
 
 # Step 2: Wait for OAuth URL to appear
 echo "Waiting for OAuth URL..."
-sleep 2
-
-# Capture OAuth URL from container
-echo "Extracting OAuth URL..."
-OAUTH_URL=$(podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_WINDOW}" -p -S -100 | grep "https://claude.ai/oauth" -A5 | tr -d '\n' | sed 's/.*\(https:\/\/claude\.ai\/oauth[^ ]*\).*/\1/' | head -1)
+OAUTH_URL=""
+for i in {1..15}; do
+    OAUTH_URL=$(podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_WINDOW}" -p -S -100 | grep "https://claude.ai/oauth" -A5 | tr -d '\n' | sed 's/.*\(https:\/\/claude\.ai\/oauth[^ ]*\).*/\1/' | head -1)
+    if [ -n "$OAUTH_URL" ]; then
+        echo "✓ OAuth URL found"
+        break
+    fi
+    sleep 1
+done
 
 if [ -z "$OAUTH_URL" ]; then
-    echo "Error: Could not find OAuth URL"
+    echo "Error: Could not find OAuth URL after 15 seconds"
     echo "Make sure Claude is showing the OAuth prompt"
     exit 1
 fi
@@ -114,7 +136,10 @@ if podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_
     if podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_WINDOW}" -p | grep -q "Bypass Permissions mode"; then
         echo "Accepting bypass permissions mode (safe in container)..."
         # Press Down to select "Yes, I accept"
-        podman exec "$CONTAINER_NAME" tmux send-keys -t "${CONTAINER_NAME}:${TMUX_WINDOW}" Down Enter
+        podman exec "$CONTAINER_NAME" tmux send-keys -t "${CONTAINER_NAME}:${TMUX_WINDOW}" Down
+        sleep 1
+        # Press Enter to confirm
+        podman exec "$CONTAINER_NAME" tmux send-keys -t "${CONTAINER_NAME}:${TMUX_WINDOW}" Enter
         sleep 3
     fi
 

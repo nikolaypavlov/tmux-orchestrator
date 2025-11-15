@@ -114,13 +114,12 @@ if ! podman exec "$CONTAINER_NAME" test -f /home/claude/.claude/.credentials.jso
     echo ""
 
     # Run OAuth login helper (handles full setup including bypass permissions)
-    "$SCRIPT_DIR/oauth-login.sh" "$CONTAINER_NAME" "$BASE_INDEX" || {
-        echo "⚠️  OAuth login failed or was cancelled"
-        echo "You can run it manually later with:"
+    if ! "$SCRIPT_DIR/oauth-login.sh" "$CONTAINER_NAME" "$BASE_INDEX"; then
+        echo "⚠️  OAuth login failed - cannot continue"
+        echo "Run manually with:"
         echo "  ./scripts/oauth-login.sh $CONTAINER_NAME $BASE_INDEX"
-        echo ""
-        echo "Continuing anyway - briefing will still be sent..."
-    }
+        exit 1
+    fi
 else
     echo "✓ Found existing credentials"
     echo "Waiting for Claude to initialize and accept bypass permissions..."
@@ -129,7 +128,9 @@ else
     # Auto-accept bypass permissions warning if present
     if podman exec "$CONTAINER_NAME" tmux capture-pane -t "$CONTAINER_NAME:$BASE_INDEX" -p | grep -q "Bypass Permissions mode"; then
         echo "Accepting bypass permissions mode..."
-        podman exec "$CONTAINER_NAME" tmux send-keys -t "$CONTAINER_NAME:$BASE_INDEX" Down Enter
+        podman exec "$CONTAINER_NAME" tmux send-keys -t "$CONTAINER_NAME:$BASE_INDEX" Down
+        sleep 1
+        podman exec "$CONTAINER_NAME" tmux send-keys -t "$CONTAINER_NAME:$BASE_INDEX" Enter
         sleep 3
     fi
 fi
