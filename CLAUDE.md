@@ -313,6 +313,50 @@ podman exec -it my-project tmux attach -t my-project
 podman exec -it my-project /bin/zsh
 ```
 
+### Agent Conversation Logs
+
+All agent conversations are automatically logged to the persistent logs volume for analysis and debugging.
+
+**Log Location:**
+- Container: `/home/claude/logs/`
+- Volume: `{project-name}-logs`
+- Format: `YYYYMMDD_HHMMSS_{role}.log`
+
+**Example logs:**
+```
+/home/claude/logs/
+├── 20241115_092900_pm.log          # PM full conversation
+├── 20241115_093015_developer.log   # Developer full conversation
+└── 20241115_093200_qa.log         # QA full conversation (if created)
+```
+
+**Viewing Logs:**
+```bash
+# List all logs
+podman exec my-project ls -lh /home/claude/logs/
+
+# View PM log in real-time
+podman exec my-project tail -f /home/claude/logs/*_pm.log
+
+# Copy logs to host for analysis
+podman cp my-project:/home/claude/logs/ ./project-logs/
+
+# Search logs for specific content
+podman exec my-project grep -r "error" /home/claude/logs/
+```
+
+**Log Persistence:**
+- Logs survive container restarts (stored in volume)
+- Each deployment creates new timestamped logs
+- Old logs preserved for historical analysis
+- Can be backed up or analyzed externally
+
+**Automatic Setup:**
+- PM logging configured in `container-init.sh`
+- Developer logging configured by PM when creating team
+- Uses `tmux pipe-pane` for real-time capture
+- No performance impact on agent operation
+
 ### Project Isolation Benefits
 
 **Security:**

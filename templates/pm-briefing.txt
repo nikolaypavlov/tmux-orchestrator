@@ -50,6 +50,11 @@ You will create and manage:
    # Create window 1 for Developer
    tmux new-window -t {{PROJECT_NAME}}:1 -n "Developer" -c "/workspace"
 
+   # Set up logging for Developer
+   TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+   DEV_LOG="/home/claude/logs/${TIMESTAMP}_developer.log"
+   tmux pipe-pane -t {{PROJECT_NAME}}:1 -o "cat >> $DEV_LOG"
+
    # Start Claude with skip permissions (safe in container)
    tmux send-keys -t {{PROJECT_NAME}}:1 "claude --dangerously-skip-permissions" Enter
    sleep 5

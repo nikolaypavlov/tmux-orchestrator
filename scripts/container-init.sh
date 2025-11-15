@@ -36,6 +36,15 @@ BASE_INDEX=${BASE_INDEX:-0}
 # Rename first window to Project-Manager
 tmux rename-window -t "$PROJECT_NAME:$BASE_INDEX" "Project-Manager"
 
+# Set up logging for PM
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+LOG_DIR="/home/claude/logs"
+mkdir -p "$LOG_DIR"
+PM_LOG="$LOG_DIR/${TIMESTAMP}_pm.log"
+
+echo "Setting up conversation logging: $PM_LOG"
+tmux pipe-pane -t "$PROJECT_NAME:$BASE_INDEX" -o "cat >> $PM_LOG"
+
 # Start Claude in first window with skip permissions for autonomous operation
 # Safe in containers due to isolation (firewall + bind mount)
 echo "Starting Claude as PM in window $BASE_INDEX..."
