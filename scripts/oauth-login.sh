@@ -111,8 +111,13 @@ fi
 echo ""
 echo "Sending code to container..."
 
-# Send code to container
-podman exec "$CONTAINER_NAME" tmux send-keys -t "${CONTAINER_NAME}:${TMUX_WINDOW}" "$OAUTH_CODE" Enter
+# Send code to container (without Enter)
+podman exec "$CONTAINER_NAME" tmux send-keys -t "${CONTAINER_NAME}:${TMUX_WINDOW}" "$OAUTH_CODE"
+sleep 1
+
+# Send Enter separately
+echo "Submitting code..."
+podman exec "$CONTAINER_NAME" tmux send-keys -t "${CONTAINER_NAME}:${TMUX_WINDOW}" Enter
 
 echo "Waiting for authentication to complete..."
 sleep 5
