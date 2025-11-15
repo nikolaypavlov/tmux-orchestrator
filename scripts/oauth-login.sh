@@ -38,9 +38,21 @@ fi
 echo "Starting OAuth flow..."
 echo ""
 
-# Wait for OAuth prompt to appear
-echo "Waiting for Claude to show OAuth prompt..."
-sleep 5
+# Step 1: Wait for login method selection screen
+echo "Waiting for login method selection..."
+sleep 3
+
+# Check if we need to select OAuth method
+if podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_WINDOW}" -p | grep -q "Select login method"; then
+    echo "Selecting Claude subscription login..."
+    # Press Enter to select first option (Claude account with subscription)
+    podman exec "$CONTAINER_NAME" tmux send-keys -t "${CONTAINER_NAME}:${TMUX_WINDOW}" Enter
+    sleep 3
+fi
+
+# Step 2: Wait for OAuth URL to appear
+echo "Waiting for OAuth URL..."
+sleep 2
 
 # Capture OAuth URL from container
 echo "Extracting OAuth URL..."
@@ -85,20 +97,33 @@ sleep 5
 
 # Check if login succeeded
 if podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_WINDOW}" -p | grep -q "Logged in as"; then
-    # Press Enter to continue
+    echo "✓ Login successful, continuing setup..."
+
+    # Step 3: Press Enter after "Login successful"
     podman exec "$CONTAINER_NAME" tmux send-keys -t "${CONTAINER_NAME}:${TMUX_WINDOW}" Enter
+    sleep 3
 
-    sleep 2
-
-    # Check for API key prompt and select "No"
-    if podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_WINDOW}" -p | grep -q "Do you want to use this API key"; then
-        echo "Selecting OAuth authentication (not API key)..."
+    # Step 4: Accept security notes
+    if podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_WINDOW}" -p | grep -q "Security notes"; then
+        echo "Accepting security notes..."
         podman exec "$CONTAINER_NAME" tmux send-keys -t "${CONTAINER_NAME}:${TMUX_WINDOW}" Enter
-        sleep 2
+        sleep 3
     fi
 
+    # Step 5: Accept bypass permissions warning
+    if podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_WINDOW}" -p | grep -q "Bypass Permissions mode"; then
+        echo "Accepting bypass permissions mode (safe in container)..."
+        # Press Down to select "Yes, I accept"
+        podman exec "$CONTAINER_NAME" tmux send-keys -t "${CONTAINER_NAME}:${TMUX_WINDOW}" Down Enter
+        sleep 3
+    fi
+
+    # Step 6: Wait for Claude to be fully ready
+    echo "Waiting for Claude to be fully initialized..."
+    sleep 2
+
     echo ""
-    echo "✓ OAuth login successful!"
+    echo "✓ OAuth setup complete!"
     echo ""
 
     # Verify credentials were saved
@@ -110,6 +135,6 @@ if podman exec "$CONTAINER_NAME" tmux capture-pane -t "${CONTAINER_NAME}:${TMUX_
 else
     echo "⚠️  Authentication may have failed"
     echo "Check container output with:"
-    echo "  podman exec $CONTAINER_NAME tmux capture-pane -t ${CONTAINER_NAME}:${TMUX_WINDOW} -p | tail -50"
+    echo "  podman exec $CONTAINER_NAME tmux capture-pane -t ${CONTAINER_NAME}:${TMUX_WINDOW} -p | tail-50"
     exit 1
 fi

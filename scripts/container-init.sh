@@ -41,36 +41,12 @@ tmux rename-window -t "$PROJECT_NAME:$BASE_INDEX" "Project-Manager"
 echo "Starting Claude as PM in window $BASE_INDEX..."
 tmux send-keys -t "$PROJECT_NAME:$BASE_INDEX" "claude --dangerously-skip-permissions" Enter
 
-# Wait for Claude to start
+# Wait for Claude to start showing login screen
 echo "Waiting for Claude to initialize..."
-sleep 5
+sleep 3
 
-# Prepare PM briefing with substitutions
-if [ -f "$TEMPLATE_PATH" ]; then
-    echo "Loading PM briefing from template..."
-    BRIEFING=$(cat "$TEMPLATE_PATH")
-
-    # Replace placeholders
-    BRIEFING="${BRIEFING//\{\{PROJECT_NAME\}\}/$PROJECT_NAME}"
-    BRIEFING="${BRIEFING//\{\{CONTAINER_NAME\}\}/$CONTAINER_NAME}"
-    BRIEFING="${BRIEFING//\{\{PROJECT_TYPE\}\}/$PROJECT_TYPE}"
-
-    # Send briefing to PM
-    echo "Briefing PM..."
-    tmux send-keys -t "$PROJECT_NAME:$BASE_INDEX" "$BRIEFING"
-    sleep 0.5
-    tmux send-keys -t "$PROJECT_NAME:$BASE_INDEX" Enter
-
-    echo "PM briefed successfully"
-else
-    echo "Warning: Template not found at $TEMPLATE_PATH"
-    echo "Sending basic briefing..."
-
-    # Fallback basic briefing
-    tmux send-keys -t "$PROJECT_NAME:$BASE_INDEX" "You are the Project Manager for $PROJECT_NAME. Analyze the project in /workspace, create a Developer in window 1, and coordinate the team."
-    sleep 0.5
-    tmux send-keys -t "$PROJECT_NAME:$BASE_INDEX" Enter
-fi
+echo "NOTE: Briefing will be sent after OAuth authentication"
+echo "      This is handled by quick-deploy.sh after OAuth flow"
 
 echo ""
 echo "=== Container Init Complete ==="

@@ -113,21 +113,76 @@ if ! podman exec "$CONTAINER_NAME" test -f /home/claude/.claude/.credentials.jso
     echo "No credentials found - starting OAuth flow..."
     echo ""
 
-    # Run OAuth login helper
+    # Run OAuth login helper (handles full setup including bypass permissions)
     "$SCRIPT_DIR/oauth-login.sh" "$CONTAINER_NAME" "$BASE_INDEX" || {
         echo "⚠️  OAuth login failed or was cancelled"
         echo "You can run it manually later with:"
         echo "  ./scripts/oauth-login.sh $CONTAINER_NAME $BASE_INDEX"
+        echo ""
+        echo "Continuing anyway - briefing will still be sent..."
     }
 else
     echo "✓ Found existing credentials"
+    echo "Waiting for Claude to initialize and accept bypass permissions..."
+    sleep 5
+
+    # Auto-accept bypass permissions warning if present
+    if podman exec "$CONTAINER_NAME" tmux capture-pane -t "$CONTAINER_NAME:$BASE_INDEX" -p | grep -q "Bypass Permissions mode"; then
+        echo "Accepting bypass permissions mode..."
+        podman exec "$CONTAINER_NAME" tmux send-keys -t "$CONTAINER_NAME:$BASE_INDEX" Down Enter
+        sleep 3
+    fi
+fi
+
+echo ""
+
+# Step 3: Send PM briefing after OAuth
+echo "Step 3/4: Briefing PM..."
+
+# Get base-index for container tmux
+CONTAINER_BASE_INDEX=$(podman exec "$CONTAINER_NAME" tmux show-options -g base-index 2>/dev/null | awk '{print $2}')
+CONTAINER_BASE_INDEX=${CONTAINER_BASE_INDEX:-0}
+
+# Detect project type (same logic as container-init.sh)
+PROJECT_TYPE="unknown"
+if [ -f "$PROJECT_PATH/package.json" ]; then
+    PROJECT_TYPE="nodejs"
+elif [ -f "$PROJECT_PATH/requirements.txt" ] || [ -f "$PROJECT_PATH/pyproject.toml" ]; then
+    PROJECT_TYPE="python"
+elif [ -f "$PROJECT_PATH/go.mod" ]; then
+    PROJECT_TYPE="go"
+elif [ -f "$PROJECT_PATH/Cargo.toml" ]; then
+    PROJECT_TYPE="rust"
+fi
+
+# Load and prepare briefing template
+TEMPLATE_PATH="$SCRIPT_DIR/../templates/pm-briefing.txt"
+if [ -f "$TEMPLATE_PATH" ]; then
+    BRIEFING=$(cat "$TEMPLATE_PATH")
+
+    # Replace placeholders
+    BRIEFING="${BRIEFING//\{\{PROJECT_NAME\}\}/$PROJECT_NAME}"
+    BRIEFING="${BRIEFING//\{\{CONTAINER_NAME\}\}/$CONTAINER_NAME}"
+    BRIEFING="${BRIEFING//\{\{PROJECT_TYPE\}\}/$PROJECT_TYPE}"
+
+    # Send briefing to PM
+    podman exec "$CONTAINER_NAME" tmux send-keys -t "$PROJECT_NAME:$CONTAINER_BASE_INDEX" "$BRIEFING"
+    sleep 0.5
+    podman exec "$CONTAINER_NAME" tmux send-keys -t "$PROJECT_NAME:$CONTAINER_BASE_INDEX" Enter
+
+    echo "✓ PM briefed successfully"
+else
+    echo "⚠️  Template not found, sending basic briefing"
+    podman exec "$CONTAINER_NAME" tmux send-keys -t "$PROJECT_NAME:$CONTAINER_BASE_INDEX" "You are the Project Manager for $PROJECT_NAME. Analyze /workspace and create your team."
+    sleep 0.5
+    podman exec "$CONTAINER_NAME" tmux send-keys -t "$PROJECT_NAME:$CONTAINER_BASE_INDEX" Enter
 fi
 
 echo ""
 
 # Step 4: Notify orchestrator about new project
 echo "Step 4/4: Notifying orchestrator..."
-sleep 2  # Give PM a moment to initialize
+sleep 2  # Give PM a moment to process briefing
 
 # Get base-index for orchestrator
 BASE_INDEX=$(tmux show-options -g base-index 2>/dev/null | awk '{print $2}')
