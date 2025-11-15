@@ -36,9 +36,10 @@ BASE_INDEX=${BASE_INDEX:-0}
 # Rename first window to Project-Manager
 tmux rename-window -t "$PROJECT_NAME:$BASE_INDEX" "Project-Manager"
 
-# Start Claude in first window
+# Start Claude in first window with skip permissions for autonomous operation
+# Safe in containers due to isolation (firewall + bind mount)
 echo "Starting Claude as PM in window $BASE_INDEX..."
-tmux send-keys -t "$PROJECT_NAME:$BASE_INDEX" "claude" Enter
+tmux send-keys -t "$PROJECT_NAME:$BASE_INDEX" "claude --dangerously-skip-permissions" Enter
 
 # Wait for Claude to start
 echo "Waiting for Claude to initialize..."

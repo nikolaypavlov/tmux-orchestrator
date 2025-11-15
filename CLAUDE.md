@@ -115,6 +115,25 @@ Containers built from `containers/Dockerfile` include:
 - **All modern CLI tools** pre-installed
 - **Shell aliases** configured (`cat`→`bat`, `find`→`fd`, `grep`→`rg`)
 - **Network firewall** with approved domains only (GitHub, Anthropic, HuggingFace, GitLab, PyPI, npm)
+- **Autonomous operation** with `--dangerously-skip-permissions` flag
+
+#### Why `--dangerously-skip-permissions` is Safe in Containers
+
+Containerized agents run with `--dangerously-skip-permissions` to enable autonomous operation without permission prompts. This is safe because:
+
+1. **Filesystem Isolation**: Agents only have access to `/workspace` (project directory) via bind mount
+2. **Network Firewall**: Container firewall restricts access to approved domains only
+3. **No Host Access**: Agents cannot access host filesystem, credentials, or other projects
+4. **Blast Radius**: Any issues are contained within the project container
+5. **Reproducible**: Containers can be destroyed and recreated without side effects
+
+The flag eliminates permission prompts for:
+- Workspace access approval
+- Tool usage (Read, Write, Bash, etc.)
+- Git commands
+- Package manager operations
+
+This allows PMs and Developers to work autonomously 24/7 without human intervention.
 
 ## 🐳 Container Deployment Architecture
 

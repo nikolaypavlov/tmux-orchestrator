@@ -50,8 +50,8 @@ You will create and manage:
    # Create window 1 for Developer
    tmux new-window -t {{PROJECT_NAME}}:1 -n "Developer" -c "/workspace"
 
-   # Start Claude
-   tmux send-keys -t {{PROJECT_NAME}}:1 "claude" Enter
+   # Start Claude with skip permissions (safe in container)
+   tmux send-keys -t {{PROJECT_NAME}}:1 "claude --dangerously-skip-permissions" Enter
    sleep 5
 
    # Send developer briefing (will be auto-generated)
