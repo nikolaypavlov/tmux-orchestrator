@@ -1,8 +1,10 @@
 # Runtime state files
 next_check_note.txt
 
-# Agent logs
-registry/
+# Agent logs (but keep registry/README.md)
+registry/logs/
+registry/notes/
+registry/sessions.json
 *.log
 
 # Python
