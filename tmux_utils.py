@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+"""
+Tmux Orchestrator Python Library
+
+This library provides a Python API for interacting with tmux sessions
+and Podman containers. While the project primarily uses shell scripts,
+this module is available for more complex automation tasks.
+
+Usage example:
+    orchestrator = TmuxOrchestrator()
+    status = orchestrator.get_comprehensive_status()
+    print(json.dumps(status, indent=2))
+
+Note: Most orchestration is done via shell scripts in scripts/ directory.
+This library provides programmatic access when needed.
+"""
 
 import subprocess
 import json

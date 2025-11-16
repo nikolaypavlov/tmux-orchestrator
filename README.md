@@ -235,6 +235,27 @@ podman exec -it myproject-dev /bin/zsh
 claude
 ```
 
+### Container Features
+
+Containerized agents come with modern CLI tools pre-installed:
+
+**Modern Alternatives:**
+- `fd` instead of `find` - Faster file search, respects `.gitignore`
+- `bat` instead of `cat` - Syntax highlighting, line numbers
+- `rg` (ripgrep) instead of `grep` - Much faster text search
+- `fzf` - Interactive fuzzy finder for files and text
+- `jq` - JSON processor and query tool
+- `entr` - Run commands when files change (auto-reload)
+- `uv` - Fast Python package manager (faster than pip)
+- `tree` - Directory structure visualization
+
+**Shell Aliases:**
+- `cat` → `bat` (with syntax highlighting)
+- `find` → `fd` (faster and simpler)
+- `grep` → `rg` (faster search)
+
+Agents are instructed to use these modern tools by default for better performance.
+
 ### Send Messages to Containerized Agents
 
 The existing scripts automatically detect containers:
@@ -261,6 +282,93 @@ podman stop myproject-dev
 
 # Cleanup with volumes
 ./scripts/cleanup-agents.sh --volumes
+```
+
+### OAuth Setup for Containerized Agents
+
+The `oauth-login.sh` script automates the OAuth authentication flow for agents running in containers. This is useful when you need to authenticate Claude inside a container.
+
+**Usage:**
+```bash
+# Authenticate agent in container
+./scripts/oauth-login.sh <container-name>
+
+# Example:
+./scripts/oauth-login.sh my-project
+```
+
+**What It Does:**
+1. Detects OAuth prompt in the container
+2. Opens OAuth URL in your default browser
+3. Waits for authorization code input
+4. Sends code to container automatically
+5. Handles theme selection
+6. Verifies successful authentication
+
+**Manual OAuth (if script fails):**
+```bash
+# 1. Attach to container
+podman exec -it my-project tmux attach -t my-project
+
+# 2. Start Claude
+claude
+
+# 3. Follow OAuth prompts in browser
+# 4. Enter authorization code when prompted
+```
+
+**Verification:**
+```bash
+# Check if agent is authenticated
+podman exec my-project cat ~/.claude.json | jq '.oauthAccount.emailAddress'
+```
+
+### Network Security & Firewall
+
+Containers can optionally run with network firewall enabled for additional security.
+
+**Enable Firewall:**
+```bash
+# During spawn
+./scripts/spawn-agent.sh --role pm --project ~/repos/my-project --firewall
+
+# Or with quick-deploy
+./scripts/quick-deploy.sh ~/repos/my-project --firewall
+```
+
+**Approved Domains:**
+- `github.com` - Code repositories
+- `api.github.com` - GitHub API
+- `gitlab.com` - Alternative Git hosting
+- `*.anthropic.com` - Claude API
+- `*.huggingface.co` - AI models and datasets
+- `pypi.org` - Python packages
+- `*.pypi.org` - Python package mirrors
+- `registry.npmjs.org` - Node packages
+- `*.npmjs.org` - npm mirrors
+
+**How It Works:**
+- Firewall uses `iptables` inside the container
+- Only whitelisted domains can be accessed
+- DNS resolution restricted to approved patterns
+- Falls back gracefully if `iptables` unavailable
+- Prevents accidental or malicious network access
+
+**Adding Custom Domains:**
+
+Edit `containers/init-firewall.sh` and add domains to the approved list:
+
+```bash
+APPROVED_DOMAINS=(
+    # Existing domains...
+    "your-company.com"
+    "*.your-api.com"
+)
+```
+
+Then rebuild the container image:
+```bash
+podman build -t tmux-orchestrator:latest containers/
 ```
 
 ## ✨ Key Features

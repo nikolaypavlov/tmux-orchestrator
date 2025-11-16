@@ -1,0 +1,33 @@
+# Runtime state files
+next_check_note.txt
+
+# Agent logs
+registry/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Container volumes (if mounted locally)
+*-logs/

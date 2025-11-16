@@ -48,8 +48,8 @@ else
     TMUX_TARGET="$TARGET"
 fi
 
-# Use bc for floating point calculation
-SECONDS=$(echo "$MINUTES * 60" | bc)
+# Use bash arithmetic (bc not available in containers)
+SECONDS=$((MINUTES * 60))
 
 # Build the command based on whether it's a container or host
 if [ -n "$CONTAINER_NAME" ]; then
